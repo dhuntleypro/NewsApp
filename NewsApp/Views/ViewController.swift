@@ -10,7 +10,7 @@ import SafariServices
 
 // Table view
 
-class ViewController: UIViewController , UITableViewDelegate, UITableViewDataSource  {
+class ViewController: UIViewController , UITableViewDelegate, UITableViewDataSource , UISearchBarDelegate {
 
     // You can embed your view into a navigation controller via storybaord
     /*
@@ -29,6 +29,7 @@ class ViewController: UIViewController , UITableViewDelegate, UITableViewDataSou
     
     private var articles  = [Article]()
     private var viewModels = [NewsTableViewCellViewModel]()
+    private var searchVC = UISearchController(searchResultsController: nil)
 
      
     override func viewDidLoad() {
@@ -39,6 +40,27 @@ class ViewController: UIViewController , UITableViewDelegate, UITableViewDataSou
         tableView.dataSource = self
         view.backgroundColor = .systemBackground
         
+        fetchTopStories()
+        createSearchBar()
+        
+    }
+    
+    // FRAME
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        tableView.frame = view.bounds
+    }
+    
+    private func createSearchBar() {
+        navigationItem.searchController = searchVC
+        searchVC.searchBar.delegate = self
+        
+    }
+    
+    
+    
+    
+    private func fetchTopStories() {
         APICaller.shared.getTopStories { [weak self] result in
             switch result {
             case .success(let articles):
@@ -60,14 +82,6 @@ class ViewController: UIViewController , UITableViewDelegate, UITableViewDataSou
             }
         }
     }
-    
-    // FRAME
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        tableView.frame = view.bounds
-    }
-    
-    
     // Table
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return viewModels.count
@@ -102,6 +116,35 @@ class ViewController: UIViewController , UITableViewDelegate, UITableViewDataSou
     
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         return 150
+    }
+    
+    // Search
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        guard let text = searchBar.text, !text.isEmpty else { return }
+        
+        APICaller.shared.search(with: text) { [weak self] result in
+            switch result {
+            case .success(let articles):
+                self?.articles = articles
+                self?.viewModels = articles.compactMap({
+                    NewsTableViewCellViewModel(
+                        title: $0.title,
+                        subtitle: $0.description ?? "No Description",
+                        imageURL: URL(string: $0.urlToImage ?? "")
+                    )
+                })
+                
+                DispatchQueue.main.async {
+                    // Refresh / add to main
+                    self?.tableView.reloadData()
+                    self?.searchVC.dismiss(animated: true, completion: nil)
+                }
+            case .failure(let error):
+                print(error)
+            }
+        }
+        
+        print(text)
     }
 
 }
